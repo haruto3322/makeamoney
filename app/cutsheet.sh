@@ -32,52 +32,52 @@ echo "🎬 カット表を作る"
 echo "   入力: $VIDEO"
 echo ""
 
-# ---- Python の用意 ----
+# ---- Python と依存ライブラリの用意 ----
 PYTHON_BIN="$(command -v python3 || true)"
 [ -n "$PYTHON_BIN" ] || abort "python3 が見つからない。Xcode Command Line Tools か Homebrew の Python を入れる:
    xcode-select --install"
 
 VENV="$REPO_ROOT/.venv"
-STAMP="$VENV/.deps-ok"
 
-hash_requirements() {
-    if command -v shasum >/dev/null 2>&1; then
-        shasum -a 256 "$REPO_ROOT/requirements.txt" | awk '{print $1}'
-    elif command -v sha256sum >/dev/null 2>&1; then
-        sha256sum "$REPO_ROOT/requirements.txt" | awk '{print $1}'
-    else
-        # ハッシュが取れない環境では内容の変化を検知できないので固定値にする。
-        echo "no-hash"
-    fi
+# 「入っているか」の判定は実際に import できるかどうかだけで行う。
+# インストール済みフラグのような間接的な目印は、途中で失敗した状態を
+# 見逃してしまうので使わない。
+venv_ready() {
+    [ -x "$VENV/bin/python" ] && "$VENV/bin/python" -c "import scenedetect" >/dev/null 2>&1
 }
 
-REQ_HASH="$(hash_requirements)"
-
-# インストールが最後まで成功したときだけスタンプを書く。venv があるだけでは
-# 完了とみなさない(途中で失敗したまま次回スキップされるのを防ぐ)。
-if [ ! -x "$VENV/bin/python" ] || [ "$(cat "$STAMP" 2>/dev/null)" != "$REQ_HASH" ]; then
-    echo "初回セットアップ中… 必要なライブラリを入れる(数分かかることがある)"
-    if [ ! -x "$VENV/bin/python" ]; then
-        "$PYTHON_BIN" -m venv "$VENV" || abort "仮想環境の作成に失敗した"
-    fi
+install_deps() {
     "$VENV/bin/python" -m pip install --quiet --upgrade pip
-    if "$VENV/bin/python" -m pip install -r "$REPO_ROOT/requirements.txt"; then
-        printf '%s' "$REQ_HASH" > "$STAMP"
-        echo "セットアップ完了"
-    else
+    "$VENV/bin/python" -m pip install -r "$REPO_ROOT/requirements.txt"
+}
+
+if ! venv_ready; then
+    echo "セットアップ中… 必要なライブラリを入れる(数分かかることがある)"
+    if [ ! -x "$VENV/bin/python" ]; then
+        "$PYTHON_BIN" -m venv "$VENV"
+    fi
+    install_deps
+    if ! venv_ready; then
+        # 仮想環境が壊れている可能性があるので、作り直して一度だけやり直す。
         echo ""
-        echo "⚠️  ライブラリのインストールに失敗した。簡易的なカット検出で続行する。"
-        echo "    精度が必要なら、ネットワークを確認してもう一度実行する。"
+        echo "仮想環境を作り直して再試行する…"
+        rm -rf "$VENV"
+        "$PYTHON_BIN" -m venv "$VENV" && install_deps
+    fi
+    echo ""
+    if venv_ready; then
+        echo "✅ セットアップ完了"
+    else
+        echo "⚠️  ライブラリを入れられなかった。精度の落ちる簡易検出で続行する。"
+        echo "    上のエラーを見せてもらえれば原因を特定できる。"
     fi
     echo ""
 fi
-PY="$VENV/bin/python"
 
-if ! "$PY" -c "import scenedetect" >/dev/null 2>&1; then
-    echo "⚠️  高精度なカット検出(PySceneDetect)が使えない状態。簡易検出で進む。"
-    echo "    入れ直すには次を実行する:"
-    echo "      rm -rf '$VENV' && '$SCRIPT_DIR/cutsheet.sh' <動画>"
-    echo ""
+if [ -x "$VENV/bin/python" ]; then
+    PY="$VENV/bin/python"
+else
+    PY="$PYTHON_BIN"
 fi
 
 # ---- カット分割とキーフレーム抽出 ----
@@ -146,15 +146,23 @@ find_claude() {
 CLAUDE_BIN="$(find_claude || true)"
 
 if [ -z "$CLAUDE_BIN" ]; then
-    echo "⚠️  claude コマンドが見つからないので、ここから先は手動で実行する。"
+    echo "──────────────────────────────────────────"
+    echo "キーフレームの書き出しまで終わった。解析は Claude Code で行う。"
     echo ""
-    echo "   cd $REPO_ROOT"
-    echo "   claude \"/cutsheet $OUTDIR\""
+    echo "【A】Claude Code のアプリ / IDE 拡張を使う場合"
+    echo "    次のフォルダを開いて、下の1行を貼り付ける:"
+    echo "      $REPO_ROOT"
     echo ""
-    echo "Claude Code をまだ入れていない場合は先にインストールする:"
-    echo "   npm install -g @anthropic-ai/claude-code"
-    echo "   (手順の詳細: https://code.claude.com/docs)"
+    echo "      /cutsheet $OUTDIR"
     echo ""
+    echo "【B】ターミナルで使う場合(claude コマンドが必要)"
+    echo "    まだ入れていなければ:"
+    echo "      npm install -g @anthropic-ai/claude-code"
+    echo "    入れたあと:"
+    echo "      cd $REPO_ROOT && claude \"/cutsheet $OUTDIR\""
+    echo ""
+    echo "手順の詳細: https://code.claude.com/docs"
+    echo "──────────────────────────────────────────"
     exit 0
 fi
 
