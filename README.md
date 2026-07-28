@@ -13,35 +13,23 @@
 
 デスクトップにアプリを置いて、**参照動画をドラッグ&ドロップするだけ**で使えるようにできる。
 
-### 0. 前提: Claude Code を入れておく
+### 1. 一度だけ: セットアップ
 
-解析は手元の Claude Code が行うので、CLI が必要。入っているかは次で確認する。
-
-```bash
-claude --version
-```
-
-`command not found` なら先にインストールする(要 Node.js)。
-
-```bash
-npm install -g @anthropic-ai/claude-code
-```
-
-手順の詳細は https://code.claude.com/docs を参照。Python のライブラリは初回起動時に
-自動で入るので、事前準備はこれだけでよい。
-
-### 1. 一度だけ: リポジトリを取得してアプリを作る
+リポジトリを取得する(ターミナルを使うのはここだけ)。
 
 ```bash
 cd ~/Desktop
 git clone https://github.com/haruto3322/makeamoney.git
-cd makeamoney
-git checkout claude/video-cut-sheet-generator-a0bpct
 ```
 
-続けて Finder で `makeamoney/app/build_app.command` を**ダブルクリック**する
-(ターミナルから `./app/build_app.command` でも同じ)。デスクトップに
-**「カット表.app」**ができる。
+あとは Finder で `makeamoney` フォルダを開き、**「セットアップ」をダブルクリック**するだけ。
+次の3つが自動でそろう。
+
+1. カット検出に使う Python ライブラリ(リポジトリ内の `.venv` に入れる。システムの Python は触らない)
+2. 解析に使う Claude Code(未導入なら自動で入れる)
+3. デスクトップの**「カット表」アプリ**
+
+数分かかる。何度実行しても問題ない(足りないものだけ入れ直す)。
 
 ### 2. 以降: 動画をドロップするだけ
 
@@ -52,18 +40,18 @@ git checkout claude/video-cut-sheet-generator-a0bpct
 3. `out/<動画名>_<日時>/` にカット表が出力される
 
 アイコンをダブルクリックすれば、動画の選択ダイアログから選ぶこともできる。
-
-初回だけリポジトリ内に `.venv` を作って必要なライブラリを入れる(数分かかる)。
-システムの Python は触らないので、権限エラーや externally-managed-environment に
-引っかからない。
+以降ターミナルにコマンドを打つ必要はない。
 
 ### 補足
 
 - 初回起動時に「"カット表"がTerminalを制御することを許可しますか?」と聞かれるので許可する
-- `makeamoney` フォルダを移動したら、`build_app.command` を実行してアプリを作り直す
+- `makeamoney` フォルダを移動したら、「セットアップ」をもう一度実行してアプリを作り直す
   (アプリはビルド時にリポジトリの場所を覚えるため)
-- アプリ名を変えたい場合は `./app/build_app.command 好きな名前`
+- アプリ名を変えたい場合は、ターミナルから `./セットアップ.command 好きな名前`
 - アイコンを変えたい場合は、Finder でアプリを選んで `⌘I` → 左上のアイコンに画像を貼る
+- Claude Code のデスクトップアプリや IDE 拡張を使っていて CLI を入れたくない場合は、
+  セットアップの手順2をスキップしてよい。動画をドロップするとキーフレーム抽出まで進み、
+  貼り付けるだけのコマンドがクリップボードに入る
 
 ## ターミナルから使う
 
@@ -131,10 +119,12 @@ python3 tools/apply_subject.py out/cutsheet.json \
 ## 構成
 
 ```
+セットアップ.command  初回セットアップ(ダブルクリック)。依存 + Claude Code + アプリ作成
 app/
-  build_app.command   デスクトップに「カット表.app」を作る(ダブルクリック)
+  lib.sh              依存の導入・Claude Code の探索/導入・アプリ生成の共通処理
+  cutsheet.sh         アプリの実処理。準備 → 抽出 → Claude Code に引き継ぎ
   droplet.applescript アプリの中身。動画を受け取って cutsheet.sh に渡す
-  cutsheet.sh         アプリの実処理。依存の自動セットアップ → 抽出 → Claude 起動
+  build_app.command   アプリだけ作り直したいとき用
 tools/
   extract_cuts.py     カット検出 + キーフレーム抽出(ローカル・無料)
   build_cutsheet.py   解析結果と cuts.json を統合し、被写体情報の漏れを検証
