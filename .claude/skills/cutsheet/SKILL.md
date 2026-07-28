@@ -57,6 +57,9 @@ python3 tools/extract_cuts.py <動画パス> -o out/
 
 ### 5. 組み立てと出力
 
+**引数に `--parts-only` が含まれていたら、この手順は行わず、ここで報告して終わる。**
+呼び出し元(無人実行の watch.sh など)が組み立てと整形を自分で実行する。
+
 ```bash
 python3 tools/build_cutsheet.py out/ --target generic
 python3 tools/render_cutsheet.py out/cutsheet.json

@@ -12,3 +12,6 @@ venv/
 
 # セットアップのログ
 .setup.log
+.watch-state/
+.watch.log
+.watch.lock/

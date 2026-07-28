@@ -53,6 +53,29 @@ git clone https://github.com/haruto3322/makeamoney.git
   セットアップの手順2をスキップしてよい。動画をドロップするとキーフレーム抽出まで進み、
   貼り付けるだけのコマンドがクリップボードに入る
 
+## iPhone から使う
+
+### 結果を iPhone で見る
+
+出力される `cutsheet.html` は**画像もすべて埋め込まれた 1 ファイル**なので、AirDrop で
+送るか iCloud Drive に置くだけで iPhone の Safari から読める。サムネイル付きのカット表が
+縦画面向けに並び、各プロンプトの「コピー」ボタンを押せばそのまま生成 AI に貼り付けられる。
+
+### iPhone から動画を投げて、自動で処理させる
+
+Mac 側に見張りを仕掛けると、**iPhone からフォルダに動画を入れるだけ**でカット表が返ってくる。
+
+Finder で `app/install_watcher.command` をダブルクリックすると、iCloud Drive に
+「カット表 / 受信」「カット表 / 完成」フォルダが作られ、Mac が 1 分ごとに受信フォルダを
+見張るようになる。
+
+あとは iPhone の**「ファイル」アプリ → iCloud Drive → カット表 → 受信**に動画を入れるだけ。
+数分後に「完成」フォルダへ HTML が現れるので、タップすれば読める。
+
+- Mac の電源が入っていてネットに繋がっている必要がある(スリープ中は復帰後に処理される)
+- 無人で解析するため Claude Code の CLI が必要。先に「セットアップ」を済ませておく
+- 動作ログは `.watch.log`。解除は `./app/install_watcher.command --uninstall`
+
 ## ターミナルから使う
 
 Mac アプリを使わず、手動で回すこともできる。必要なのは Python 3.10+ と ffmpeg。
@@ -113,6 +136,7 @@ python3 tools/apply_subject.py out/cutsheet.json \
 | `out/parts/cut_NNN.json` | カットごとの解析結果(Claude が書く中間ファイル) |
 | `out/cutsheet.json` | 統合済みカット表データ |
 | `out/cutsheet.md` | 人が読むカット表(サムネイル・プロンプト付き) |
+| `out/cutsheet.html` | iPhone / ブラウザ用。画像込みの 1 ファイルで持ち出せる |
 | `out/cutsheet.csv` | 表計算ソフト用 |
 | `out/prompts_*.md` / `.csv` | 被写体差し替え後のプロンプト一式 |
 
@@ -125,10 +149,12 @@ app/
   cutsheet.sh         アプリの実処理。準備 → 抽出 → Claude Code に引き継ぎ
   droplet.applescript アプリの中身。動画を受け取って cutsheet.sh に渡す
   build_app.command   アプリだけ作り直したいとき用
+  watch.sh            iCloud の受信フォルダを見張って自動処理する
+  install_watcher.command  iPhone 連携(iCloud フォルダ + 定期実行)の設定
 tools/
   extract_cuts.py     カット検出 + キーフレーム抽出(ローカル・無料)
   build_cutsheet.py   解析結果と cuts.json を統合し、被写体情報の漏れを検証
-  render_cutsheet.py  cutsheet.json を Markdown / CSV に整形
+  render_cutsheet.py  cutsheet.json を Markdown / CSV / HTML に整形
   apply_subject.py    {subject} を差し替えてプロンプト一式を出力
 .claude/skills/cutsheet/
   SKILL.md            解析手順(Claude Code が読む)
