@@ -13,6 +13,23 @@
 
 デスクトップにアプリを置いて、**参照動画をドラッグ&ドロップするだけ**で使えるようにできる。
 
+### 0. 前提: Claude Code を入れておく
+
+解析は手元の Claude Code が行うので、CLI が必要。入っているかは次で確認する。
+
+```bash
+claude --version
+```
+
+`command not found` なら先にインストールする(要 Node.js)。
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+手順の詳細は https://code.claude.com/docs を参照。Python のライブラリは初回起動時に
+自動で入るので、事前準備はこれだけでよい。
+
 ### 1. 一度だけ: リポジトリを取得してアプリを作る
 
 ```bash

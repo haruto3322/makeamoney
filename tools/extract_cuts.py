@@ -29,6 +29,13 @@ DEFAULT_MAX_FRAMES = 5
 # キーフレームの長辺ピクセル数。解析精度とトークン消費のバランス点。
 DEFAULT_WIDTH = 1024
 
+# 閾値を明示されなかった場合に、粗すぎる結果なら順に下げて試す。
+# 検出器ごとに閾値の意味が違うので別のはしごを持つ。
+SCENEDETECT_LADDER = [27.0, 20.0, 14.0]
+FFMPEG_LADDER = [0.30, 0.18, 0.10]
+# 1 カットの平均がこれより長ければ「カットを取りこぼしている」とみなす。
+COARSE_AVG_SEC = 12.0
+
 
 def die(message: str) -> "NoReturn":  # type: ignore[valid-type]
     print(f"error: {message}", file=sys.stderr)
@@ -154,6 +161,19 @@ def merge_short_cuts(cuts: list[tuple[float, float]], min_len: float) -> list[tu
     return [(start, end) for start, end in merged]
 
 
+def looks_too_coarse(cuts: list[tuple[float, float]], duration: float) -> bool:
+    """カットを取りこぼしていそうかどうかの判定。
+
+    40 秒の広告が 2 カット、のような明らかに粗い結果を検出して、
+    閾値を下げた再検出につなげる。長回しの映像なら下げても結果は変わらない。
+    """
+    if not cuts:
+        return True
+    if duration <= 0:
+        return False
+    return (duration / len(cuts)) > COARSE_AVG_SEC
+
+
 def frame_times(start: float, end: float, max_frames: int) -> list[float]:
     """カット内でキーフレームを取る時刻を決める。
 
@@ -204,12 +224,12 @@ def main() -> int:
         help="カット検出方式(既定: auto = PySceneDetect があれば使う)",
     )
     parser.add_argument(
-        "--threshold", type=float, default=27.0,
-        help="PySceneDetect の閾値。小さいほど細かく割れる(既定: 27.0)",
+        "--threshold", type=float,
+        help=f"PySceneDetect の閾値。小さいほど細かく割れる(既定: {SCENEDETECT_LADDER[0]} から自動調整)",
     )
     parser.add_argument(
-        "--ffmpeg-threshold", type=float, default=0.3,
-        help="ffmpeg 検出時の閾値 0-1。小さいほど細かく割れる(既定: 0.3)",
+        "--ffmpeg-threshold", type=float,
+        help=f"ffmpeg 検出時の閾値 0-1。小さいほど細かく割れる(既定: {FFMPEG_LADDER[0]} から自動調整)",
     )
     parser.add_argument(
         "--min-len", type=float, default=0.4,
@@ -233,25 +253,51 @@ def main() -> int:
     duration = info["duration_sec"]
     print(f"入力: {args.video}  {duration:.2f}s  {info['width']}x{info['height']}  {info['fps']}fps")
 
-    detector_used = args.detector
-    cuts: list[tuple[float, float]] | None = None
+    # 閾値が明示されていなければ、粗すぎる結果が出たぶんだけ段階的に下げて試す。
+    cuts: list[tuple[float, float]] = []
+    detector_used: str | None = None
+    threshold_used: float | None = None
+
     if args.detector in ("auto", "scenedetect"):
-        cuts = detect_with_scenedetect(args.video, args.threshold)
-        if cuts is None:
+        ladder = [args.threshold] if args.threshold is not None else SCENEDETECT_LADDER
+        for value in ladder:
+            candidate = detect_with_scenedetect(args.video, value)
+            if candidate is None:
+                break  # PySceneDetect 未インストール
+            cuts = merge_short_cuts(candidate, args.min_len)
+            detector_used, threshold_used = "scenedetect", value
+            if args.threshold is not None or not looks_too_coarse(cuts, duration):
+                break
+            print(f"  カットが粗いので閾値を下げて再検出する(threshold={value} で {len(cuts)} カット)")
+
+        if detector_used is None:
             if args.detector == "scenedetect":
                 die("PySceneDetect が入っていない。`pip install -r requirements.txt` を実行する")
-            print("PySceneDetect が無いので ffmpeg の scene フィルタで検出する")
-        else:
-            detector_used = "scenedetect"
+            print("⚠️  PySceneDetect が使えないので簡易検出(ffmpeg)に切り替える。")
+            print("    カット数が実際と大きく違う場合は `pip install -r requirements.txt` で入れ直す。")
 
-    if cuts is None:
-        cuts = detect_with_ffmpeg(args.video, ffmpeg, args.ffmpeg_threshold, duration)
-        detector_used = "ffmpeg"
+    if detector_used is None:
+        ladder = [args.ffmpeg_threshold] if args.ffmpeg_threshold is not None else FFMPEG_LADDER
+        for value in ladder:
+            cuts = merge_short_cuts(
+                detect_with_ffmpeg(args.video, ffmpeg, value, duration), args.min_len
+            )
+            detector_used, threshold_used = "ffmpeg", value
+            if args.ffmpeg_threshold is not None or not looks_too_coarse(cuts, duration):
+                break
+            print(f"  カットが粗いので閾値を下げて再検出する(threshold={value} で {len(cuts)} カット)")
 
     if not cuts:
         cuts = [(0.0, duration)]
-    cuts = merge_short_cuts(cuts, args.min_len)
-    print(f"カット検出: {len(cuts)} カット(検出器: {detector_used})")
+
+    average = duration / len(cuts) if cuts else 0.0
+    print(
+        f"カット検出: {len(cuts)} カット"
+        f"(検出器: {detector_used}, 閾値: {threshold_used}, 平均 {average:.1f}秒/カット)"
+    )
+    if looks_too_coarse(cuts, duration):
+        flag = "--threshold" if detector_used == "scenedetect" else "--ffmpeg-threshold"
+        print(f"  ⚠️  カット数が想定より少ない場合は {flag} をさらに下げて実行し直す。")
 
     frames_dir = args.outdir / "frames"
     frames_dir.mkdir(parents=True, exist_ok=True)
