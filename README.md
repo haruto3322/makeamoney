@@ -9,9 +9,48 @@
 
 設計の詳細は [`docs/DESIGN.md`](docs/DESIGN.md)。
 
-## セットアップ
+## Mac アプリとして使う(推奨)
 
-必要なのは Python 3.10+ と ffmpeg。
+デスクトップにアプリを置いて、**参照動画をドラッグ&ドロップするだけ**で使えるようにできる。
+
+### 1. 一度だけ: リポジトリを取得してアプリを作る
+
+```bash
+cd ~/Desktop
+git clone https://github.com/haruto3322/makeamoney.git
+cd makeamoney
+git checkout claude/video-cut-sheet-generator-a0bpct
+```
+
+続けて Finder で `makeamoney/app/build_app.command` を**ダブルクリック**する
+(ターミナルから `./app/build_app.command` でも同じ)。デスクトップに
+**「カット表.app」**ができる。
+
+### 2. 以降: 動画をドロップするだけ
+
+デスクトップの「カット表」アイコンに参照動画をドラッグ&ドロップすると、
+
+1. ターミナルが開いてカット分割とキーフレーム抽出が走る
+2. 続けて Claude Code が起動し、解析とプロンプト生成が始まる
+3. `out/<動画名>_<日時>/` にカット表が出力される
+
+アイコンをダブルクリックすれば、動画の選択ダイアログから選ぶこともできる。
+
+初回だけリポジトリ内に `.venv` を作って必要なライブラリを入れる(数分かかる)。
+システムの Python は触らないので、権限エラーや externally-managed-environment に
+引っかからない。
+
+### 補足
+
+- 初回起動時に「"カット表"がTerminalを制御することを許可しますか?」と聞かれるので許可する
+- `makeamoney` フォルダを移動したら、`build_app.command` を実行してアプリを作り直す
+  (アプリはビルド時にリポジトリの場所を覚えるため)
+- アプリ名を変えたい場合は `./app/build_app.command 好きな名前`
+- アイコンを変えたい場合は、Finder でアプリを選んで `⌘I` → 左上のアイコンに画像を貼る
+
+## ターミナルから使う
+
+Mac アプリを使わず、手動で回すこともできる。必要なのは Python 3.10+ と ffmpeg。
 
 ```bash
 pip install -r requirements.txt
@@ -19,8 +58,6 @@ pip install -r requirements.txt
 
 `scenedetect` が入っていなければ ffmpeg の scene フィルタで自動的に代替するので、
 最低限 ffmpeg さえあれば動く。
-
-## 使い方
 
 ### 1. カット分割とキーフレーム抽出(ローカル処理)
 
@@ -77,6 +114,10 @@ python3 tools/apply_subject.py out/cutsheet.json \
 ## 構成
 
 ```
+app/
+  build_app.command   デスクトップに「カット表.app」を作る(ダブルクリック)
+  droplet.applescript アプリの中身。動画を受け取って cutsheet.sh に渡す
+  cutsheet.sh         アプリの実処理。依存の自動セットアップ → 抽出 → Claude 起動
 tools/
   extract_cuts.py     カット検出 + キーフレーム抽出(ローカル・無料)
   build_cutsheet.py   解析結果と cuts.json を統合し、被写体情報の漏れを検証
