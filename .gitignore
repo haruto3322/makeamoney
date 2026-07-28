@@ -1,0 +1,11 @@
+# 解析の出力物(動画・キーフレーム・カット表)はコミットしない
+out/
+*.mp4
+*.mov
+*.webm
+
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store

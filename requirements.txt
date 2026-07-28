@@ -1,0 +1,6 @@
+# カット検出。未インストールでも ffmpeg の scene フィルタで代替動作する。
+# opencv-python は scenedetect の依存として一緒に入る。
+scenedetect>=0.6.4
+
+# ffmpeg が PATH に無い環境向けの同梱バイナリ。ffmpeg を別途入れているなら不要。
+imageio-ffmpeg>=0.5.1
