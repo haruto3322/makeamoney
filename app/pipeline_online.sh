@@ -47,7 +47,11 @@ if [ $status -ne 0 ]; then
 fi
 
 # 生成物・解析結果・依頼票の変化だけを返す。動画は .gitignore で除外済み。
-git add out work council 2>/dev/null
+# 止まっているところが無いか調べ、STATUS.md に残す。
+# 無人で回す以上、止まったことに誰も気づかないのが最悪なので毎回書く。
+"$PY" "$REPO_ROOT/tools/healthcheck.py" || true
+
+git add out work council STATUS.md 2>/dev/null
 if git diff --cached --quiet; then
     log "返すものは無い"
     exit 0
