@@ -123,6 +123,54 @@ PC 側で回したい場合は、Finder で `app/install_council.command` をダ
 前回までの結論が次回の文脈に入るので、同じ議論を繰り返さず先に進む。
 iCloud 連携を設定してあれば、結論は iPhone からも読める。
 
+## 生成AIで再現できているかを検証する
+
+作ったプロンプトが本当に狙った映像を作れるのかを、印象ではなく**項目ごとに**判定する。
+
+> **Google AI Pro について**: AI Pro は Gemini アプリ / Flow を使う権利であって、API
+> アクセスは含まれない。そのため**生成そのものは Flow の画面で行う必要がある**。
+> このツールは生成の前後を自動化して、人の作業を「プロンプトを貼る」「できた動画を置く」
+> の 2 つだけに減らす。
+
+### 1. 生成用ワークシートを作る
+
+```bash
+python3 tools/make_worksheet.py out/xxx/cutsheet.json
+```
+
+`out/xxx/verify/worksheet.html` ができる。ショットサイズとカメラワークがなるべく
+ばらけるように 3 カットが自動で選ばれる(同じような絵ばかり検証しても分かることが少ない)。
+
+iPhone でも開けるので、Flow を触りながらそのまま参照できる。
+
+### 2. Flow で生成して、動画を置く
+
+ワークシートの「コピー」を押してプロンプトを取り、Gemini アプリまたは
+Flow(labs.google/flow)で生成する。できた動画を、ワークシートに書かれている
+`out/xxx/verify/generated/cut_NNN.mp4` として保存する。
+
+### 3. 検証する
+
+```bash
+bash app/verify.sh out/xxx
+```
+
+生成物を**参照と同じパイプライン**に通して解析し、構造として比較する。
+
+| 項目 | 判定のしかた |
+|---|---|
+| ショットサイズ | 完全一致 / 隣接(CU と MCU など)は「近い」/ それ以外は不一致 |
+| アングル | 表記ゆれ(eye-level と eye level)を吸収して比較 |
+| カメラワーク | 語彙単位で比較(slow dolly-in と dolly in は一致) |
+| 尺 | 0.5 秒以内は一致、1 秒以内は「近い」 |
+| 構図・照明・カラー・場所・ムード | 機械判定できないので、参照と生成を並べて表示 |
+
+`out/xxx/verify/report.html` に、参照と生成のサムネイルを並べた比較表が出る。
+
+**同じ項目が 2 カット以上でズレていたら「体系的なズレ」として名指しされる。**
+1 カットだけのズレは生成のばらつきとして扱い、修正対象にしない。プロンプトの
+書き方を直すべきかどうかが、この一行で判断できる。
+
 ## ターミナルから使う
 
 Mac アプリを使わず、手動で回すこともできる。必要なのは Python 3.10+ と ffmpeg。
@@ -198,6 +246,7 @@ app/
   build_app.command   アプリだけ作り直したいとき用
   watch.sh            iCloud の受信フォルダを見張って自動処理する
   install_watcher.command  iPhone 連携(iCloud フォルダ + 定期実行)の設定
+  verify.sh           生成物を解析して参照と比較する
   council.sh          合議を 1 回まわす(ローカル)
   council_online.sh   合議 → コミット → push まで無人で行う(クラウド定期実行用)
   install_council.command  合議の自動実行(既定 5 時間ごと)の設定
@@ -206,6 +255,8 @@ tools/
   build_cutsheet.py   解析結果と cuts.json を統合し、被写体情報の漏れを検証
   render_cutsheet.py  cutsheet.json を Markdown / CSV / HTML に整形
   apply_subject.py    {subject} を差し替えてプロンプト一式を出力
+  make_worksheet.py   生成用ワークシート(プロンプト + 参照サムネ)を作る
+  compare_cutsheets.py 参照と生成を項目ごとに比較して判定する
   council.py          5 役の合議を回して結論をまとめる
 council/
   agenda.md           議題(書き換えて使う)
