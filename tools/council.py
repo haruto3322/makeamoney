@@ -21,6 +21,7 @@ import random
 import shutil
 import subprocess
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
@@ -141,7 +142,7 @@ def find_claude() -> str:
     )
 
 
-def ask(claude_bin: str, prompt: str, timeout: int) -> str:
+def ask_once(claude_bin: str, prompt: str, timeout: int) -> str:
     """Claude を 1 回呼ぶ。道具は使わせず、文章だけを返させる。"""
     result = subprocess.run(
         [claude_bin, "-p"],
@@ -150,11 +151,33 @@ def ask(claude_bin: str, prompt: str, timeout: int) -> str:
     )
     if result.returncode != 0:
         raise RuntimeError((result.stderr or result.stdout).strip()[:500] or "不明なエラー")
-    return result.stdout.strip()
+    answer = result.stdout.strip()
+    if not answer:
+        raise RuntimeError("応答が空だった")
+    return answer
+
+
+def ask(claude_bin: str, prompt: str, timeout: int, attempts: int = 3) -> str:
+    """一過性の失敗で 1 役分の意見が丸ごと欠けるのを防ぐため、間を置いて再試行する。
+
+    無人で回す前提なので、人が気づいて再実行することを当てにできない。
+    """
+    delay = 5
+    last: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return ask_once(claude_bin, prompt, timeout)
+        except Exception as error:
+            last = error
+            if attempt < attempts:
+                time.sleep(delay)
+                delay *= 3
+    raise RuntimeError(f"{attempts} 回試して失敗した: {last}")
 
 
 def run_round(
-    tasks: list[tuple[str, str]], claude_bin: str, timeout: int, dry_run: bool
+    tasks: list[tuple[str, str]], claude_bin: str, timeout: int,
+    dry_run: bool, concurrency: int = 3,
 ) -> dict[str, str]:
     """(ラベル, プロンプト) の集合を並行で処理する。"""
     results: dict[str, str] = {}
@@ -168,10 +191,12 @@ def run_round(
         except Exception as error:  # 1 役が落ちても合議は続ける
             return label, f"⚠️ この役は回答できなかった: {error}"
 
-    with ThreadPoolExecutor(max_workers=len(tasks)) as pool:
+    workers = max(1, min(concurrency, len(tasks)))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
         for label, answer in pool.map(one, tasks):
             results[label] = answer
-            print(f"  ✓ {label}")
+            mark = "✗" if answer.startswith("⚠️") else "✓"
+            print(f"  {mark} {label}")
     return results
 
 
@@ -179,6 +204,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="5 人の助言役による合議を回す")
     parser.add_argument("--topic", help="議題。省略時は council/agenda.md を読む")
     parser.add_argument("--timeout", type=int, default=900, help="1 回の応答の上限秒数")
+    parser.add_argument(
+        "--concurrency", type=int, default=3,
+        help="同時に走らせる役の数。増やすと速いが取りこぼしやすい(既定: 3)",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Claude を呼ばずに動作だけ確認する")
     parser.add_argument("--seed", type=int, help="匿名ラベルの並びを固定する(検証用)")
     parser.add_argument("--dump-prompts", type=Path, help="組み立てたプロンプトを書き出す(検証用)")
@@ -211,7 +240,7 @@ def main() -> int:
         prompt = f"{read_role(key)}\n\n---\n\n{context}"
         dump("round1", display, prompt)
         round1_tasks.append((display, prompt))
-    round1 = run_round(round1_tasks, claude_bin, args.timeout, args.dry_run)
+    round1 = run_round(round1_tasks, claude_bin, args.timeout, args.dry_run, args.concurrency)
 
     # ---- ステップ2: 匿名の相互評価 ----
     print("ステップ2: 互いの案を匿名で評価する")
@@ -235,7 +264,7 @@ def main() -> int:
         )
         dump("round2", display, prompt)
         round2_tasks.append((display, prompt))
-    round2 = run_round(round2_tasks, claude_bin, args.timeout, args.dry_run)
+    round2 = run_round(round2_tasks, claude_bin, args.timeout, args.dry_run, args.concurrency)
 
     # ---- ステップ3: 議長のまとめ ----
     print("ステップ3: 議長がまとめる")

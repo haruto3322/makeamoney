@@ -102,10 +102,19 @@ Finder で `app/install_watcher.command` をダブルクリックすると、iCl
 
 `council/latest.md` に結論、`council/log/` に議事録が残る。
 
-### 自動で回し続ける
+### 自動で回し続ける — クラウド(PC 不要・推奨)
 
-Finder で `app/install_council.command` をダブルクリックする(既定は 5 時間ごと。
-`./app/install_council.command 3` のように間隔を指定してもよい)。
+Claude Code の Routine(定期実行)に `app/council_online.sh` を仕込むと、**PC を一切使わず**
+Anthropic 側の環境で 5 時間ごとに合議が走る。結果は自動で GitHub に push されるので、
+iPhone のブラウザから `council/latest.md` を開けば読める。手元で何かを起動しておく必要はない。
+
+Mac の電源やスリープに左右されず、こちらが推奨。設定は Claude Code のセッションから
+Routine を作るだけで、その後は何もしなくてよい。
+
+### 自動で回し続ける — Mac(ローカル)
+
+PC 側で回したい場合は、Finder で `app/install_council.command` をダブルクリックする
+(既定は 5 時間ごと。`./app/install_council.command 3` のように間隔を指定してもよい)。
 
 - 議題を変える: `council/agenda.md` を書き換える
 - 役割の性格を変える: `council/roles/*.md` を書き換える
@@ -189,7 +198,8 @@ app/
   build_app.command   アプリだけ作り直したいとき用
   watch.sh            iCloud の受信フォルダを見張って自動処理する
   install_watcher.command  iPhone 連携(iCloud フォルダ + 定期実行)の設定
-  council.sh          合議を 1 回まわす
+  council.sh          合議を 1 回まわす(ローカル)
+  council_online.sh   合議 → コミット → push まで無人で行う(クラウド定期実行用)
   install_council.command  合議の自動実行(既定 5 時間ごと)の設定
 tools/
   extract_cuts.py     カット検出 + キーフレーム抽出(ローカル・無料)
