@@ -15,3 +15,5 @@ venv/
 .watch-state/
 .watch.log
 .watch.lock/
+.council.log
+.council.lock/

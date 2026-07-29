@@ -76,6 +76,44 @@ Finder で `app/install_watcher.command` をダブルクリックすると、iCl
 - 無人で解析するため Claude Code の CLI が必要。先に「セットアップ」を済ませておく
 - 動作ログは `.watch.log`。解除は `./app/install_watcher.command --uninstall`
 
+## AI 合議で開発方針を決める
+
+5 つの助言役が独立に意見を出し、互いの案を匿名で評価し、議長がまとめて次の行動を決める。
+これを 5 時間ごとに自動で回し続けられる(Claude の利用枠が 5 時間単位で切り替わるため、
+枠ごとに 1 回議論させて寝かせない、という考え方)。
+
+| 役 | 仕事 |
+|---|---|
+| 反対役 | 反対意見だけを出す。賛成点は書かない |
+| 前提破壊役 | 書かれていない前提を掘り出し、すべて疑う |
+| 拡張役 | 見落としている可能性を探す |
+| 部外者役 | 業界を何も知らない立場から素朴な質問をする |
+| 実行役 | 次に何をするべきかだけを考える |
+| 議長 | 全体をまとめ、具体的な次の行動を決める |
+
+役ごとに**別プロセスで Claude を呼ぶ**。1 回の応答で 5 役を演じさせると意見が互いに
+引っ張られてしまい、独立した視点にならないため。
+
+### すぐ 1 回試す
+
+```bash
+./app/council.sh
+```
+
+`council/latest.md` に結論、`council/log/` に議事録が残る。
+
+### 自動で回し続ける
+
+Finder で `app/install_council.command` をダブルクリックする(既定は 5 時間ごと。
+`./app/install_council.command 3` のように間隔を指定してもよい)。
+
+- 議題を変える: `council/agenda.md` を書き換える
+- 役割の性格を変える: `council/roles/*.md` を書き換える
+- 解除: `./app/install_council.command --uninstall`
+
+前回までの結論が次回の文脈に入るので、同じ議論を繰り返さず先に進む。
+iCloud 連携を設定してあれば、結論は iPhone からも読める。
+
 ## ターミナルから使う
 
 Mac アプリを使わず、手動で回すこともできる。必要なのは Python 3.10+ と ffmpeg。
@@ -151,11 +189,18 @@ app/
   build_app.command   アプリだけ作り直したいとき用
   watch.sh            iCloud の受信フォルダを見張って自動処理する
   install_watcher.command  iPhone 連携(iCloud フォルダ + 定期実行)の設定
+  council.sh          合議を 1 回まわす
+  install_council.command  合議の自動実行(既定 5 時間ごと)の設定
 tools/
   extract_cuts.py     カット検出 + キーフレーム抽出(ローカル・無料)
   build_cutsheet.py   解析結果と cuts.json を統合し、被写体情報の漏れを検証
   render_cutsheet.py  cutsheet.json を Markdown / CSV / HTML に整形
   apply_subject.py    {subject} を差し替えてプロンプト一式を出力
+  council.py          5 役の合議を回して結論をまとめる
+council/
+  agenda.md           議題(書き換えて使う)
+  roles/              各役と議長のプロンプト
+  log/                過去の議事録
 .claude/skills/cutsheet/
   SKILL.md            解析手順(Claude Code が読む)
   references/         スキーマ・解析観点・モデル別プロンプト書式
