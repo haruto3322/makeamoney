@@ -181,6 +181,7 @@ def build_comparisons(reference_cuts: list[dict], verify_dir: Path) -> list[dict
 
         results.append({
             "cut_no": number,
+            "analyzed_by": generated_data.get("analyzed_by"),
             "reference": cut,
             "generated": generated,
             "generated_dir": generated_sheet.parent,
@@ -194,7 +195,7 @@ def build_comparisons(reference_cuts: list[dict], verify_dir: Path) -> list[dict
     return results
 
 
-def summarize(comparisons: list[dict]) -> list[str]:
+def summarize(comparisons: list[dict], reference_analyzed_by: str | None = None) -> list[str]:
     """体系的なズレだけを拾う。1 カットだけのズレは生成のばらつきとして扱う。"""
     counts: dict[str, int] = {}
     labels: dict[str, str] = {}
@@ -217,10 +218,25 @@ def summarize(comparisons: list[dict]) -> list[str]:
         notes.append(f"生成物が 1 カットに収まっていない(Cut {numbers})→ プロンプトが複数場面を示唆している可能性")
     if not notes:
         notes.append("体系的なズレは見つからなかった。個別のばらつきのみ。修正は不要")
+
+    # 参照と生成物を別のモデルが解析していたら、比較そのものが疑わしい。
+    mismatched = sorted({
+        str(c.get("analyzed_by")) for c in comparisons
+        if c.get("analyzed_by") and c.get("analyzed_by") != reference_analyzed_by
+    })
+    if mismatched and reference_analyzed_by:
+        notes.insert(0, (
+            f"⚠️ 参照は **{reference_analyzed_by}**、生成物は **{', '.join(mismatched)}** が解析している。"
+            "書き方の癖の差が「ズレ」として出てしまうので、"
+            "同じモデルで解析し直すまでこの判定は当てにしない"
+        ))
     return notes
 
 
-def render(comparisons: list[dict], reference_dir: Path, source: str) -> str:
+def render(
+    comparisons: list[dict], reference_dir: Path, source: str,
+    reference_analyzed_by: str | None = None,
+) -> str:
     esc = html.escape
     out = [
         "<!doctype html>",
@@ -233,7 +249,7 @@ def render(comparisons: list[dict], reference_dir: Path, source: str) -> str:
     ]
 
     out.append('<section class="summary"><h2>判定</h2><ul>')
-    for note in summarize(comparisons):
+    for note in summarize(comparisons, reference_analyzed_by):
         # ** で囲まれた部分だけ強調する。
         parts = esc(note).split("**")
         rendered = "".join(p if i % 2 == 0 else f"<b>{p}</b>" for i, p in enumerate(parts))
@@ -322,11 +338,14 @@ def main() -> int:
     verify_dir.mkdir(parents=True, exist_ok=True)
     source = Path(str(data.get("source") or "")).name or "(unknown)"
     report = verify_dir / "report.html"
-    report.write_text(render(comparisons, args.outdir, source), encoding="utf-8")
+    reference_analyzed_by = data.get("analyzed_by")
+    report.write_text(
+        render(comparisons, args.outdir, source, reference_analyzed_by), encoding="utf-8"
+    )
 
     print(f"書き出し: {report}({len(comparisons)} カットを比較)")
     print()
-    for note in summarize(comparisons):
+    for note in summarize(comparisons, reference_analyzed_by):
         print("  - " + note.replace("**", ""))
     return 0
 

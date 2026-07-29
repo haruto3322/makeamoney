@@ -65,6 +65,11 @@ def main() -> int:
     parser.add_argument("outdir", type=Path, help="extract_cuts.py の出力ディレクトリ")
     parser.add_argument("--target", help="プロンプトの想定生成モデル(veo / runway / kling / generic)")
     parser.add_argument(
+        "--analyzed-by",
+        help="解析したエージェント名(claude / antigravity など)。"
+             "参照と生成物を別のモデルで解析すると比較が成立しないため記録する",
+    )
+    parser.add_argument(
         "--allow-missing", action="store_true",
         help="解析済みでないカットがあっても中断しない(途中経過の確認用)",
     )
@@ -143,6 +148,8 @@ def main() -> int:
     }
     if args.target:
         payload["target_model"] = args.target
+    if args.analyzed_by:
+        payload["analyzed_by"] = args.analyzed_by
 
     overall_path = parts_dir / "overall.json"
     if overall_path.is_file():
