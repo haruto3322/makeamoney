@@ -7,7 +7,8 @@
 
 解析は Claude Code 上で動くので、**API の従量課金は発生しない**(定額プランの範囲で動く)。
 
-設計の詳細は [`docs/DESIGN.md`](docs/DESIGN.md)。
+設計の詳細は [`docs/DESIGN.md`](docs/DESIGN.md)、
+Antigravity との連携は [`docs/ANTIGRAVITY.md`](docs/ANTIGRAVITY.md)。
 
 ## Mac アプリとして使う(推奨)
 
@@ -149,6 +150,11 @@ iPhone でも開けるので、Flow を触りながらそのまま参照でき�
 Flow(labs.google/flow)で生成する。できた動画を、ワークシートに書かれている
 `out/xxx/verify/generated/cut_NNN.mp4` として保存する。
 
+この手順は **Antigravity のブラウザ操作に任せることもできる**。
+`make_worksheet.py` は同時に `work/queue/` へ依頼票を置くので、Antigravity に
+「work/queue の依頼票を処理して」と頼めばよい。詳細は
+[`docs/ANTIGRAVITY.md`](docs/ANTIGRAVITY.md)。
+
 ### 3. 検証する
 
 ```bash
@@ -255,9 +261,13 @@ tools/
   build_cutsheet.py   解析結果と cuts.json を統合し、被写体情報の漏れを検証
   render_cutsheet.py  cutsheet.json を Markdown / CSV / HTML に整形
   apply_subject.py    {subject} を差し替えてプロンプト一式を出力
-  make_worksheet.py   生成用ワークシート(プロンプト + 参照サムネ)を作る
+  make_worksheet.py   生成用ワークシートと、Antigravity 向けの依頼票を作る
   compare_cutsheets.py 参照と生成を項目ごとに比較して判定する
   council.py          5 役の合議を回して結論をまとめる
+AGENTS.md             エージェント(Antigravity / Claude Code)への指示
+work/
+  queue/              未処理の生成依頼。Antigravity が拾う
+  done/ failed/       処理済み / 失敗した依頼
 council/
   agenda.md           議題(書き換えて使う)
   roles/              各役と議長のプロンプト

@@ -17,3 +17,7 @@ venv/
 .watch.lock/
 .council.log
 .council.lock/
+
+# 受け渡しの中身は使い捨て(依頼票そのものは追跡する)
+work/**/*.mp4
+work/**/*.mov

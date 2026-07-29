@@ -17,6 +17,7 @@ import argparse
 import html
 import json
 import sys
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -131,11 +132,61 @@ def render(cuts: list[dict], data: dict, base_dir: Path, generated_dir: Path) ->
     return "\n".join(out)
 
 
+def write_queue(
+    cuts: list[dict], cutsheet: Path, base_dir: Path, generated_dir: Path
+) -> int:
+    """Antigravity が拾う依頼票を書く。1 ファイル = 1 本の生成依頼。
+
+    リポジトリを受け渡しの場にしているので、こちらは置くだけでよい。
+    """
+    repo_root = Path(__file__).resolve().parent.parent
+    queue_dir = repo_root / "work" / "queue"
+    queue_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M")
+
+    def relative(path: Path) -> str:
+        # 依頼票は別のエージェントが別の場所から読む。どこから見ても同じ場所を
+        # 指すよう、リポジトリ相対か絶対パスのどちらかにする(cwd 相対にしない)。
+        try:
+            return str(path.resolve().relative_to(repo_root))
+        except ValueError:
+            return str(path.resolve())
+
+    written = 0
+    for cut in cuts:
+        row = flatten(cut)
+        number = int(row["cut_no"])
+        task_id = f"gen_{stamp}_cut{number:03d}"
+        thumbnail = cut.get("thumbnail")
+        task = {
+            "id": task_id,
+            "type": "video_generation",
+            "service": "flow",
+            "created_by": "claude-code",
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+            "prompt": row["prompt_exact"],
+            "duration_sec": row["duration_sec"],
+            "reference_frame": relative(base_dir / thumbnail) if thumbnail else None,
+            "save_to": relative(generated_dir / f"cut_{number:03d}.mp4"),
+            "source_cutsheet": relative(cutsheet),
+            "cut_no": number,
+        }
+        (queue_dir / f"{task_id}.json").write_text(
+            json.dumps(task, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        written += 1
+    return written
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="カット表から生成用ワークシートを作る")
     parser.add_argument("cutsheet", type=Path, help="cutsheet.json のパス")
     parser.add_argument("--count", type=int, default=3, help="検証するカット数(既定: 3)")
     parser.add_argument("--cuts", help="検証するカット番号をカンマ区切りで指定(例: 1,5,9)")
+    parser.add_argument(
+        "--no-queue", action="store_true",
+        help="work/queue に依頼票を書かない(自分で生成する場合)",
+    )
     args = parser.parse_args()
 
     if not args.cutsheet.is_file():
@@ -167,7 +218,11 @@ def main() -> int:
     worksheet = verify_dir / "worksheet.html"
     worksheet.write_text(render(selected, data, base_dir, generated_dir), encoding="utf-8")
 
+    queued = write_queue(selected, args.cutsheet, base_dir, generated_dir) if not args.no_queue else 0
+
     print(f"書き出し: {worksheet}")
+    if queued:
+        print(f"依頼票:   work/queue/ に {queued} 件(Antigravity が拾う)")
     print(f"検証対象: Cut {', '.join(str(c['cut_no']) for c in selected)}")
     print()
     print("次の手順:")
