@@ -265,8 +265,10 @@ tools/
   make_worksheet.py   生成用ワークシートと、Antigravity 向けの依頼票を作る
   compare_cutsheets.py 参照と生成を項目ごとに比較して判定する
   pipeline.py         リポジトリの状態を見て、進められる工程だけを進める
+  healthcheck.py      流れが止まっていないか調べて STATUS.md を書く
   council.py          5 役の合議を回して結論をまとめる
 AGENTS.md             エージェント(Antigravity / Claude Code)への指示
+STATUS.md             いま止まっているところ(自動更新)
 work/
   queue/              未処理の生成依頼。Antigravity が拾う
   done/ failed/       処理済み / 失敗した依頼
