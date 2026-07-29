@@ -255,6 +255,7 @@ app/
   verify.sh           生成物を解析して参照と比較する
   council.sh          合議を 1 回まわす(ローカル)
   council_online.sh   合議 → コミット → push まで無人で行う(クラウド定期実行用)
+  pipeline_online.sh  進められる工程を自動で進める(クラウド定期実行用)
   install_council.command  合議の自動実行(既定 5 時間ごと)の設定
 tools/
   extract_cuts.py     カット検出 + キーフレーム抽出(ローカル・無料)
@@ -263,6 +264,7 @@ tools/
   apply_subject.py    {subject} を差し替えてプロンプト一式を出力
   make_worksheet.py   生成用ワークシートと、Antigravity 向けの依頼票を作る
   compare_cutsheets.py 参照と生成を項目ごとに比較して判定する
+  pipeline.py         リポジトリの状態を見て、進められる工程だけを進める
   council.py          5 役の合議を回して結論をまとめる
 AGENTS.md             エージェント(Antigravity / Claude Code)への指示
 work/
